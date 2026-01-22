@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>CoDesign Viewer</title>
+
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+      }
+      #viewer {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+
+    <!-- Autodesk Viewer CSS -->
+    <link
+      rel="stylesheet"
+      href="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/style.min.css"
+    />
+
+    <!-- Autodesk Viewer JS -->
+    <script
+      src="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.min.js">
+    </script>
+  </head>
+
+  <body>
+    <div id="viewer"></div>
+
+    <script>
+      // === URN of the translated model (Base64, without "urn:" prefix) ===
+      const URN_ENCODED =
+        "dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6Y29kZXNpZ24tc2FyYS0yMDc2MDEyNzkvc2FtcGxlLmR3Zw";
+
+      // === Token callback required by Autodesk Viewer ===
+      function getAccessToken(onTokenReady) {
+        fetch("/api/viewer/token")
+          .then((response) => response.json())
+          .then((data) => {
+            if (!data.access_token) {
+              console.error("No access_token returned from server", data);
+              return;
+            }
+            onTokenReady(data.access_token, data.expires_in);
+          })
+          .catch((error) => {
+            console.error("Failed to fetch viewer token:", error);
+          });
+      }
+
+      // === Initialize Autodesk Viewer ===
+      Autodesk.Viewing.Initializer(
+        {
+          env: "AutodeskProduction",
+          api: "derivativeV2",
+          getAccessToken: getAccessToken,
+        },
+        () => {
+          const viewerDiv = document.getElementById("viewer");
+          const viewer = new Autodesk.Viewing.GuiViewer3D(viewerDiv);
+          viewer.start();
+
+          const documentId = "urn:" + URN_ENCODED;
+
+          Autodesk.Viewing.Document.load(
+            documentId,
+            (doc) => {
+              const defaultModel = doc.getRoot().getDefaultGeometry();
+              viewer.loadDocumentNode(doc, defaultModel);
+            },
+            (error) => {
+              console.error("Failed to load document:", error);
+            }
+          );
+        }
+      );
+    </script>
+  </body>
+</html>

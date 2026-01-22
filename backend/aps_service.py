@@ -2,6 +2,7 @@ import os
 import math
 import urllib.parse
 import requests
+import base64
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,6 +16,106 @@ AUTH_URL = f"{APS_BASE_URL}/authentication/v2/token"
 
 # In APS Signed S3 Upload: each part except the last must be at least 5MB.
 MIN_PART_SIZE = 5 * 1024 * 1024
+
+
+def get_viewer_token() -> dict:
+    if not CLIENT_ID or not CLIENT_SECRET:
+        raise RuntimeError("APS_CLIENT_ID / APS_CLIENT_SECRET are not set in .env")
+
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    data = {
+        "grant_type": "client_credentials",
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "scope": "viewables:read",
+    }
+
+    resp = requests.post(AUTH_URL, headers=headers, data=data, timeout=30)
+    if resp.status_code == 200:
+        return resp.json()
+
+    raise Exception(f"Viewer token failed: {resp.status_code} {resp.text}")
+
+
+def get_manifest(urn_encoded: str) -> dict:
+    """
+    Get Model Derivative manifest for the given URN.
+    Endpoint: GET /modelderivative/v2/designdata/{urn}/manifest
+    """
+    access_token = _get_access_token()
+    url = f"{APS_BASE_URL}/modelderivative/v2/designdata/{urn_encoded}/manifest"
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    resp = requests.get(url, headers=headers, timeout=30)
+    if resp.status_code == 200:
+        return resp.json()
+
+    raise Exception(f"Get manifest failed: {resp.status_code} {resp.text}")
+
+
+def translate_to_viewer(urn_encoded: str) -> dict:
+    """
+    Request translation of a model for viewing (SVF2).
+    """
+    access_token = _get_access_token()
+
+    url = f"{APS_BASE_URL}/modelderivative/v2/designdata/job"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    body = {
+        "input": {
+            "urn": urn_encoded
+        },
+        "output": {
+            "formats": [
+                {
+                    "type": "svf2",
+                    "views": ["2d", "3d"]
+                }
+            ]
+        }
+    }
+
+    resp = requests.post(url, headers=headers, json=body, timeout=30)
+
+    if resp.status_code in (200, 201):
+        return resp.json()
+
+    raise Exception(f"Translation failed: {resp.status_code} {resp.text}")
+
+
+def to_base64_urn(object_id: str) -> str:
+    """
+    Convert OSS objectId (urn:adsk.objects:os.object:...) to base64 URN (URL-safe, no padding).
+    """
+    b = object_id.encode("utf-8")
+    encoded = base64.b64encode(b).decode("utf-8")
+    # Make it URL-safe as commonly required by APS examples
+    encoded = encoded.replace("+", "-").replace("/", "_").rstrip("=")
+    return encoded
+
+
+def get_object_details(object_name: str) -> dict:
+    """
+    Get object details from OSS, including objectId.
+    Endpoint: GET /oss/v2/buckets/{bucketKey}/objects/{objectName}/details
+    """
+    if not APS_BUCKET_KEY:
+        raise RuntimeError("APS_BUCKET_KEY is not set in .env")
+
+    access_token = _get_access_token()
+    safe_object_name = urllib.parse.quote(object_name, safe="")
+    url = f"{APS_BASE_URL}/oss/v2/buckets/{APS_BUCKET_KEY}/objects/{safe_object_name}/details"
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    resp = requests.get(url, headers=headers, timeout=30)
+    if resp.status_code == 200:
+        return resp.json()
+
+    raise Exception(f"Get object details failed: {resp.status_code} {resp.text}")
 
 
 def get_aps_token() -> dict:

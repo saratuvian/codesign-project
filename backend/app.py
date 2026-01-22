@@ -7,6 +7,11 @@ from aps_service import (
     create_bucket_if_needed,
     upload_file_signed_s3,
     get_signed_s3_download_url,
+    get_object_details,
+    to_base64_urn, 
+    translate_to_viewer,
+    get_manifest,
+    get_viewer_token
 )
 
 load_dotenv()
@@ -92,6 +97,89 @@ def api_download_sample():
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/oss/sample-urn", methods=["GET"])
+def api_sample_urn():
+    """
+    Return objectId and base64 URN for sample.dwg
+    """
+    try:
+        details = get_object_details("sample.dwg")
+        object_id = details.get("objectId")
+        if not object_id:
+            return jsonify({"error": "objectId not found in details", "details": details}), 500
+
+        urn_encoded = to_base64_urn(object_id)
+        return jsonify({
+            "object_name": "sample.dwg",
+            "objectId": object_id,
+            "urnEncoded": urn_encoded,
+            "details": details
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+@app.route("/api/viewer/translate-sample", methods=["POST"])
+def api_translate_sample():
+    """
+    Start Model Derivative translation for sample.dwg
+    """
+    try:
+        details = get_object_details("sample.dwg")
+        object_id = details.get("objectId")
+        urn_encoded = to_base64_urn(object_id)
+
+        result = translate_to_viewer(urn_encoded)
+
+        return jsonify({
+            "message": "Translation job submitted",
+            "urnEncoded": urn_encoded,
+            "result": result
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/viewer/manifest-sample", methods=["GET"])
+def api_manifest_sample():
+    """
+    Check translation status for sample.dwg
+    """
+    try:
+        details = get_object_details("sample.dwg")
+        object_id = details.get("objectId")
+        urn_encoded = to_base64_urn(object_id)
+
+        manifest = get_manifest(urn_encoded)
+        return jsonify({
+            "message": "Manifest retrieved",
+            "urnEncoded": urn_encoded,
+            "status": manifest.get("status"),
+            "manifest": manifest
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/viewer/token", methods=["GET"])
+def api_viewer_token():
+    try:
+        token = get_viewer_token()
+        return jsonify({
+            "access_token": token.get("access_token"),
+            "expires_in": token.get("expires_in"),
+            "token_type": token.get("token_type"),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/viewer")
+def viewer_page():
+    return app.send_static_file("viewer.html")
 
 
 if __name__ == "__main__":
