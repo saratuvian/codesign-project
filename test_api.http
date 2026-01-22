@@ -1,0 +1,7 @@
+### יצירת bucket
+POST http://127.0.0.1:5000/api/oss/setup
+
+### העלאת sample
+POST http://127.0.0.1:5000/api/oss/upload-sample
+
+GET http://127.0.0.1:5000/api/oss/download-sample
