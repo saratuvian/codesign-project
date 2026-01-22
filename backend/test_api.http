@@ -1,0 +1,17 @@
+### Check APS token
+GET http://127.0.0.1:5000/api/token
+
+###
+
+### Create or verify bucket
+POST http://127.0.0.1:5000/api/oss/setup
+
+###
+
+### Upload sample DWG
+POST http://127.0.0.1:5000/api/oss/upload-sample
+
+###
+
+### Get signed download URL
+GET http://127.0.0.1:5000/api/oss/download-sample
